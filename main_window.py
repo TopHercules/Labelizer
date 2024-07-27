@@ -1,5 +1,5 @@
 import os
-from PyQt5.QtWidgets import QMainWindow, QFileDialog, QAction, QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QLineEdit, QComboBox, QPushButton, QSplitter
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QAction, QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QLineEdit, QComboBox, QPushButton, QSplitter, QCheckBox
 from PyQt5.QtCore import Qt
 from plot_canvas import PlotCanvas
 
@@ -22,13 +22,18 @@ class MainWindow(QMainWindow):
         self.csv_list.itemClicked.connect(self.load_selected_file)
         left_panel.addWidget(self.csv_list)
 
-        self.interval_input = QLineEdit(self)
-        self.interval_input.setPlaceholderText('Interval (seconds)')
-        left_panel.addWidget(self.interval_input)
+        self.interval_check = QCheckBox('Use Interval', self)
+        self.interval_check.setChecked(True)
+        self.interval_check.stateChanged.connect(self.update_use_interval)
+        left_panel.addWidget(self.interval_check)
 
-        self.interval_button = QPushButton('Set Interval', self)
-        self.interval_button.clicked.connect(self.update_interval)
-        left_panel.addWidget(self.interval_button)
+        # self.interval_input = QLineEdit(self)
+        # self.interval_input.setPlaceholderText('Interval (seconds)')
+        # left_panel.addWidget(self.interval_input)
+
+        # self.interval_button = QPushButton('Set Interval', self)
+        # self.interval_button.clicked.connect(self.update_interval)
+        # left_panel.addWidget(self.interval_button)
 
         self.split_type_combo = QComboBox(self)
         self.split_type_combo.addItems(['train', 'test', 'split'])
@@ -39,6 +44,11 @@ class MainWindow(QMainWindow):
         self.predict_button.clicked.connect(self.predict)
         left_panel.addWidget(self.predict_button)
 
+        # Create Undo button
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.clicked.connect(self.undo_action)
+        left_panel.addWidget(self.undo_button)
+        
         left_panel_widget = QWidget()
         left_panel_widget.setLayout(left_panel)
         layout.addWidget(left_panel_widget)
@@ -64,23 +74,29 @@ class MainWindow(QMainWindow):
         loadLabels = QAction('Load Labels', self)
         loadLabels.triggered.connect(self.load_labels)
         fileMenu.addAction(loadLabels)
+        
+        self.folder = "/"
 
         self.show()
 
+    def undo_action(self):
+        self.plot_canvas.undo_last_action()
+
     def show_folder_dialog(self):
         options = QFileDialog.Options()
-        folder = QFileDialog.getExistingDirectory(self, 'Open Folder', '', options=options)
-        if folder:
-            self.load_folder(folder)
+        self.folder = QFileDialog.getExistingDirectory(self, 'Open Folder', '', options=options)
+        if self.folder:
+            self.load_folder()
 
-    def load_folder(self, folder):
+    def load_folder(self):
         self.csv_list.clear()
-        csv_files = [f for f in os.listdir(folder) if f.endswith('.csv')]
+        csv_files = [f for f in os.listdir(self.folder) if f.endswith('.csv')]
         for csv_file in csv_files:
-            self.csv_list.addItem(os.path.join(folder, csv_file))
+            self.csv_list.addItem(csv_file)
 
     def load_selected_file(self, item):
-        self.plot_canvas.load_csv(item.text())
+        self.plot_canvas.load_csv(os.path.join(self.folder, item.text()))
+        # self.plot_canvas.update_fall_data()
 
     def update_interval(self):
         try:
@@ -93,6 +109,11 @@ class MainWindow(QMainWindow):
     def update_split_type(self, split_type):
         self.plot_canvas.set_split_type(split_type)
         print(f"Split type updated to {split_type}")
+
+    def update_use_interval(self, state):
+        use_interval = state == Qt.Checked
+        self.plot_canvas.set_use_interval(use_interval)
+        print(f"Use interval updated to {use_interval}")
 
     def save_labels(self):
         options = QFileDialog.Options()
