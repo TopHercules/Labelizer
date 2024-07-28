@@ -1,131 +1,113 @@
 import os
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QAction, QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QLineEdit, QComboBox, QPushButton, QSplitter, QCheckBox
+from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 from PyQt5.QtCore import Qt
 from plot_canvas import PlotCanvas
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.initUI()
+        self.setWindowTitle("CSV Plotter")
+        self.setGeometry(100, 100, 1200, 800)
+        self.canvas = PlotCanvas(self)
+        self.init_ui()
+        self.csv_dir = ''
+        self.csv_files = []
+        print("MainWindow initialized")
 
-    def initUI(self):
-        self.setWindowTitle('Labelizer Tool')
+    def init_ui(self):
+        layout = QVBoxLayout()
+        
+        # Adding Matplotlib toolbar
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        layout.addWidget(self.toolbar)
 
-        self.main_widget = QWidget(self)
-        self.setCentralWidget(self.main_widget)
+        splitter = QSplitter(Qt.Horizontal)
+        left_widget = QWidget()
+        left_layout = QVBoxLayout()
 
-        layout = QSplitter(Qt.Horizontal)
+        self.folder_button = QPushButton("Select Folder")
+        self.folder_button.clicked.connect(self.select_folder)
+        left_layout.addWidget(self.folder_button)
 
-        left_panel = QVBoxLayout()
+        self.file_list = QListWidget()
+        self.file_list.itemSelectionChanged.connect(self.load_selected_csv)
+        left_layout.addWidget(self.file_list)
 
-        self.csv_list = QListWidget(self)
-        self.csv_list.itemClicked.connect(self.load_selected_file)
-        left_panel.addWidget(self.csv_list)
+        self.label_save_button = QPushButton("Save Labels")
+        self.label_save_button.clicked.connect(self.save_labels)
+        left_layout.addWidget(self.label_save_button)
 
-        self.interval_check = QCheckBox('Use Interval', self)
-        self.interval_check.setChecked(True)
-        self.interval_check.stateChanged.connect(self.update_use_interval)
-        left_panel.addWidget(self.interval_check)
+        self.label_load_button = QPushButton("Load Labels")
+        self.label_load_button.clicked.connect(self.load_labels)
+        left_layout.addWidget(self.label_load_button)
 
-        # self.interval_input = QLineEdit(self)
-        # self.interval_input.setPlaceholderText('Interval (seconds)')
-        # left_panel.addWidget(self.interval_input)
+        self.interval_edit = QLineEdit()
+        self.interval_edit.setPlaceholderText("Enter interval (seconds)")
+        left_layout.addWidget(self.interval_edit)
 
-        # self.interval_button = QPushButton('Set Interval', self)
-        # self.interval_button.clicked.connect(self.update_interval)
-        # left_panel.addWidget(self.interval_button)
+        self.set_interval_button = QPushButton("Set Interval")
+        self.set_interval_button.clicked.connect(self.set_interval)
+        left_layout.addWidget(self.set_interval_button)
 
-        self.split_type_combo = QComboBox(self)
+        self.split_type_combo = QComboBox()
         self.split_type_combo.addItems(['train', 'test', 'split'])
-        self.split_type_combo.currentTextChanged.connect(self.update_split_type)
-        left_panel.addWidget(self.split_type_combo)
+        self.split_type_combo.currentTextChanged.connect(self.set_split_type)
+        left_layout.addWidget(self.split_type_combo)
 
-        self.predict_button = QPushButton('Predict', self)
-        self.predict_button.clicked.connect(self.predict)
-        left_panel.addWidget(self.predict_button)
+        self.use_interval_checkbox = QCheckBox("Use Interval")
+        self.use_interval_checkbox.setChecked(True)
+        self.use_interval_checkbox.stateChanged.connect(self.set_use_interval)
+        left_layout.addWidget(self.use_interval_checkbox)
 
-        # Create Undo button
-        self.undo_button = QPushButton("Undo")
-        self.undo_button.clicked.connect(self.undo_action)
-        left_panel.addWidget(self.undo_button)
-        
-        left_panel_widget = QWidget()
-        left_panel_widget.setLayout(left_panel)
-        layout.addWidget(left_panel_widget)
+        left_widget.setLayout(left_layout)
+        splitter.addWidget(left_widget)
+        splitter.addWidget(self.canvas)
 
-        self.plot_canvas = PlotCanvas(self.main_widget)
-        layout.addWidget(self.plot_canvas)
+        layout.addWidget(splitter)
 
-        main_layout = QHBoxLayout()
-        main_layout.addWidget(layout)
-        self.main_widget.setLayout(main_layout)
+        central_widget = QWidget()
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
+        print("UI initialized")
 
-        menubar = self.menuBar()
-        fileMenu = menubar.addMenu('File')
+    def select_folder(self):
+        self.csv_dir = QFileDialog.getExistingDirectory(self, "Select Folder")
+        self.load_csv_files()
 
-        openFolder = QAction('Open Folder', self)
-        openFolder.triggered.connect(self.show_folder_dialog)
-        fileMenu.addAction(openFolder)
+    def load_csv_files(self):
+        if self.csv_dir:
+            self.csv_files = [f for f in os.listdir(self.csv_dir) if f.endswith('.csv')]
+            self.file_list.clear()
+            self.file_list.addItems(self.csv_files)
+            print(f"Loaded CSV files from {self.csv_dir}")
 
-        saveFile = QAction('Save Labels', self)
-        saveFile.triggered.connect(self.save_labels)
-        fileMenu.addAction(saveFile)
-
-        loadLabels = QAction('Load Labels', self)
-        loadLabels.triggered.connect(self.load_labels)
-        fileMenu.addAction(loadLabels)
-        
-        self.folder = "/"
-
-        self.show()
-
-    def undo_action(self):
-        self.plot_canvas.undo_last_action()
-
-    def show_folder_dialog(self):
-        options = QFileDialog.Options()
-        self.folder = QFileDialog.getExistingDirectory(self, 'Open Folder', '', options=options)
-        if self.folder:
-            self.load_folder()
-
-    def load_folder(self):
-        self.csv_list.clear()
-        csv_files = [f for f in os.listdir(self.folder) if f.endswith('.csv')]
-        for csv_file in csv_files:
-            self.csv_list.addItem(csv_file)
-
-    def load_selected_file(self, item):
-        self.plot_canvas.load_csv(os.path.join(self.folder, item.text()))
-        # self.plot_canvas.update_fall_data()
-
-    def update_interval(self):
-        try:
-            interval_seconds = int(self.interval_input.text())
-            self.plot_canvas.set_interval(interval_seconds)
-            print(f"Interval updated to {interval_seconds} seconds")
-        except ValueError:
-            print("Invalid interval value")
-
-    def update_split_type(self, split_type):
-        self.plot_canvas.set_split_type(split_type)
-        print(f"Split type updated to {split_type}")
-
-    def update_use_interval(self, state):
-        use_interval = state == Qt.Checked
-        self.plot_canvas.set_use_interval(use_interval)
-        print(f"Use interval updated to {use_interval}")
+    def load_selected_csv(self):
+        selected_items = self.file_list.selectedItems()
+        if selected_items:
+            selected_file = selected_items[0].text()
+            filepath = os.path.join(self.csv_dir, selected_file)
+            self.canvas.load_csv(filepath)
 
     def save_labels(self):
-        options = QFileDialog.Options()
-        file, _ = QFileDialog.getSaveFileName(self, 'Save Labels', 'falls.csv', 'CSV Files (*.csv)', options=options)
-        if file:
-            self.plot_canvas.save_labels(file)
+        filename, _ = QFileDialog.getSaveFileName(self, "Save Labels", "", "CSV Files (*.csv)")
+        if filename:
+            self.canvas.save_labels(filename)
 
     def load_labels(self):
-        options = QFileDialog.Options()
-        file, _ = QFileDialog.getOpenFileName(self, 'Open Labels', '', 'CSV Files (*.csv)', options=options)
-        if file:
-            self.plot_canvas.load_labels(file)
+        filename, _ = QFileDialog.getOpenFileName(self, "Load Labels", "", "CSV Files (*.csv)")
+        if filename:
+            self.canvas.load_labels(filename)
 
-    def predict(self):
-        self.plot_canvas.predict_and_plot()
+    def set_interval(self):
+        try:
+            interval_seconds = int(self.interval_edit.text())
+            self.canvas.set_interval(interval_seconds)
+        except ValueError:
+            print("Invalid interval")
+
+    def set_split_type(self, split_type):
+        self.canvas.set_split_type(split_type)
+
+    def set_use_interval(self, state):
+        self.canvas.set_use_interval(state == Qt.Checked)
