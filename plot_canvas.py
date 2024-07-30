@@ -181,19 +181,25 @@ class PlotCanvas(FigureCanvas):
                 self.plot(self.data)
             with open(filename, 'r') as f:
                 for line in f:
-                    mac, date, start_time, end_time, split, fall_status = line.strip().split(',')
-                    start_time = datetime.datetime.strptime(f'{date} {start_time}', '%Y-%m-%d %H:%M:%S')
-                    end_time = datetime.datetime.strptime(f'{date} {end_time}', '%Y-%m-%d %H:%M:%S') if end_time else None
+                    tag, date, start_time, end_time, split, fall_status = line.strip().split(',')
+                    start_time = datetime.datetime.strptime(f'{date} {start_time}', '%Y-%m-%d %H:%M:%S.%f')
+                    end_time = datetime.datetime.strptime(f'{date} {end_time}', '%Y-%m-%d %H:%M:%S.%f') if end_time else None
                     label = 'fall' if fall_status == '1' else 'not fall'
-                    self.fall_labels.append((mac, start_time, end_time, label, split))
-                    color = 'red' if label == 'fall' else 'green'
-                    linestyle = '--' if split in ['test', 'split'] else '-'
-                    self.ax.axvspan(start_time, end_time if end_time else start_time, color=color, alpha=0.2)
-                    self.ax.axvline(start_time, color=color, linestyle=linestyle, linewidth=0.5)
+                    self.fall_labels.append((tag, start_time, end_time, label, split))
+                    
+                    if self.data['TAG'][0] == tag and self.data['TS'][0].date() == start_time.date():
+                        color = 'red' if label == 'fall' else 'green'
+                        linestyle = '--' if split in ['test', 'split'] else '-'
+                        if end_time:
+                            self.ax.axvspan(start_time, end_time, color=color, alpha=0.2)
+                        else:
+                            self.ax.axvspan(start_time - self.LM, start_time + self.RM, color=color, alpha=0.2)
+                            self.ax.axvline(start_time, color=color, linestyle=linestyle, linewidth=0.5)
             self.draw()
             print(f"Labels loaded from {filename}")
         except Exception as e:
             print(f"Error loading labels: {e}")
+
 
     def update_fall_data(self):
         for tag, start_time, end_time, label, split in self.fall_labels:

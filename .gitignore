@@ -1,7 +1,8 @@
 __pycache__
-Data/*
-falls.csv
-airgoutils
-models/*
+*.csv
+*.zip
+*.ini
 test.py
-imu_labelizer.ini
+Data/*
+models/*
+airgoutils
